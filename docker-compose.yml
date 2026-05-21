@@ -1,0 +1,37 @@
+services:
+  # PostgreSQL database service
+  db:
+    image: postgres:15-alpine
+    container_name: task_manager_db
+    environment:
+      POSTGRES_USER: taskuser
+      POSTGRES_PASSWORD: taskpass
+      POSTGRES_DB: taskdb
+    ports:
+      - "5433:5432"  # Use 5433 on host, 5432 inside container
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI application service
+  web:
+    build: .
+    container_name: task_manager_app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8001:8000"  # Use 8001 on host, 8000 inside container
+    environment:
+      DATABASE_URL: postgresql+asyncpg://taskuser:taskpass@db:5432/taskdb
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    restart: on-failure
+
+volumes:
+  postgres_data:
