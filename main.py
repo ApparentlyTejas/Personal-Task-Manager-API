@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List
@@ -23,6 +24,13 @@ app = FastAPI(
     description="A simple CRUD API for managing tasks",
     version="1.0.0",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ===== ENDPOINTS =====
