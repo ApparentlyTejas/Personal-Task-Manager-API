@@ -47,3 +47,8 @@ htmlcov/
 # Database
 *.db
 *.sqlite
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
