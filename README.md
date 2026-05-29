@@ -368,7 +368,8 @@ This project is open source and available under the MIT License.
 
 **Tejas Malhotra**
 - Email: tejas.malhotra.14@gmail.com
-- GitHub: [@YourUsername](https://github.com/YourUsername)
+- GitHub: ApparentlyTejas
+- (https://github.com/ApparentlyTejas)
 
 ---
 
