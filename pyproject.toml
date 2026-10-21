@@ -26,3 +26,10 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 omit = ["tests/*"]
+# SQLAlchemy's async engine bridges to the sync asyncpg driver via greenlet
+# switches (greenlet_spawn). Without this, coverage's sys.settrace hook does
+# not follow execution into those greenlets, so every line that runs inside
+# an `await session.execute(...)` / `await session.commit()` call -- i.e.
+# almost the entire app -- is silently (and incorrectly) reported as
+# uncovered even when tests exercise it.
+concurrency = ["greenlet"]

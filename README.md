@@ -387,10 +387,33 @@ DATABASE_URL="postgresql+asyncpg://taskuser:taskpass@localhost:5544/taskdb" \
 
 ### Known gap
 
-Test coverage is currently a minimal smoke suite (`tests/test_smoke.py`): a health-check test and one full
-create → read → update → delete round-trip, plus a 404 check. It exists so CI/coverage have something real
-to measure — it is **not** a substitute for thorough test coverage (edge cases, validation errors, concurrent
-access, etc. are not yet covered). Expanding this is the next priority after CI itself.
+Test coverage is now 98% (`main.py`/`models.py`/`database.py` combined), up from the original 68%
+smoke-only baseline. Beyond the original smoke suite (`tests/test_smoke.py`: health check + one CRUD
+round-trip + a single 404), `tests/test_tasks.py` adds: validation-error coverage (missing/null/wrong-typed
+fields on create and update, all returning 422), a 404 check for every not-found path (get/update/delete,
+including deleting an already-deleted task), partial-update tests confirming PATCH leaves untouched fields
+alone, multi-row listing/deletion scenarios, and edge cases (empty and whitespace-only titles, the exact
+255-char column boundary, and the behavior when that boundary is exceeded).
+
+Two things worth calling out explicitly rather than leaving implicit:
+
+- **Status is a free-form string, not a state machine.** `TaskDB.status` is a plain `String(50)` column and
+  `TaskUpdate.status` is a plain optional `str` — there is no enum and no transition guard anywhere in
+  `main.py`/`models.py`. Any transition (forward, backward, or to a nonsense value like `"banana"`) is
+  currently accepted. The tests document this actual behavior rather than asserting a constraint that
+  doesn't exist; if status transitions should be restricted, that's a feature to add, not a bug to fix.
+- **An over-length title is an unhandled 500, not a 422.** `TaskCreate.title` has no `max_length`, so a
+  title longer than the `TaskDB.title` column's `String(255)` limit passes Pydantic validation and fails at
+  the database instead — Postgres raises, and `main.py` has no exception handler for it, so the client sees
+  a bare 500. This is tested and documented (`test_create_task_title_over_column_boundary_currently_500s`)
+  rather than silently patched, since fixing it (e.g. a `max_length=255` on the Pydantic field, or a 400/422
+  handler for DB-level errors) is an app-logic change outside the scope of this test pass.
+
+The only genuinely uncovered lines are `main.py`'s `if __name__ == "__main__": uvicorn.run(...)` block —
+it only runs when the file is executed directly as a script, not meaningfully testable via pytest.
+
+Not yet covered, and still worth doing: concurrent-access/race-condition behavior (e.g. two requests
+updating the same task at once), and load/stress testing for the listing endpoint at larger row counts.
 
 ## 📈 Future Enhancements
 
