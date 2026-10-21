@@ -1,5 +1,7 @@
 # Task Manager API
 
+![CI](https://github.com/ApparentlyTejas/Personal-Task-Manager-API/actions/workflows/ci.yml/badge.svg)
+
 A simple REST API for managing tasks, built with **FastAPI**, **PostgreSQL**, and **Docker**. This project demonstrates modern Python backend development with async programming, database integration, and containerization.
 
 ## 🎯 Features
@@ -38,7 +40,11 @@ A simple REST API for managing tasks, built with **FastAPI**, **PostgreSQL**, an
 ├── main.py                 # FastAPI application & endpoints
 ├── models.py              # SQLAlchemy ORM models & Pydantic schemas
 ├── database.py            # Database connection & session management
+├── tests/                 # Pytest smoke tests (health check + CRUD round-trip)
 ├── requirements.txt       # Python dependencies
+├── requirements-dev.txt   # + test/lint/type-check tooling
+├── pyproject.toml         # ruff, mypy, and pytest configuration
+├── .github/workflows/ci.yml  # GitHub Actions: lint, type-check, test+coverage
 ├── Dockerfile             # FastAPI container configuration
 ├── docker-compose.yml     # Multi-container setup
 ├── .env.example          # Example environment variables
@@ -349,6 +355,43 @@ docker compose down
 docker compose up --build
 ```
 
+## ✅ CI, Linting, Type Checking & Coverage
+
+Every push/PR to `main` runs three GitHub Actions jobs (see `.github/workflows/ci.yml`):
+
+- **Lint** — [ruff](https://docs.astral.sh/ruff/) (config in `pyproject.toml`)
+- **Type check** — [mypy](https://mypy-lang.org/) in strict-ish mode with `ignore_missing_imports = true` for stub-less libraries
+- **Test & coverage** — `pytest` against a real `postgres:15-alpine` service container (same image/credentials as `docker-compose.yml`), with a coverage report uploaded as a workflow artifact (`coverage.xml` + HTML)
+
+### Running it locally
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+# Lint
+ruff check .
+
+# Type check
+mypy main.py models.py database.py tests
+
+# Tests + coverage (point DATABASE_URL at a disposable Postgres instance)
+docker run -d --name taskdb-test -e POSTGRES_USER=taskuser -e POSTGRES_PASSWORD=taskpass \
+  -e POSTGRES_DB=taskdb -p 5544:5432 postgres:15-alpine
+
+DATABASE_URL="postgresql+asyncpg://taskuser:taskpass@localhost:5544/taskdb" \
+  pytest --cov=main --cov=models --cov=database --cov-report=term-missing --cov-report=html
+# open htmlcov/index.html for the interactive coverage report
+```
+
+### Known gap
+
+Test coverage is currently a minimal smoke suite (`tests/test_smoke.py`): a health-check test and one full
+create → read → update → delete round-trip, plus a 404 check. It exists so CI/coverage have something real
+to measure — it is **not** a substitute for thorough test coverage (edge cases, validation errors, concurrent
+access, etc. are not yet covered). Expanding this is the next priority after CI itself.
+
 ## 📈 Future Enhancements
 
 - [ ] Add user authentication (JWT tokens)
@@ -356,8 +399,7 @@ docker compose up --build
 - [ ] Add pagination for large task lists
 - [ ] Add task categories/tags
 - [ ] Add due dates and reminders
-- [ ] Add unit tests
-- [ ] Add CI/CD pipeline (GitHub Actions)
+- [ ] Expand test coverage beyond the smoke suite
 - [ ] Deploy to cloud (AWS, Heroku, Railway)
 
 ## 📝 License

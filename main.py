@@ -1,12 +1,13 @@
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import List
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
-from database import init_db, get_session
-from models import TaskDB, TaskCreate, TaskUpdate, TaskResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_session, init_db
+from models import TaskCreate, TaskDB, TaskResponse, TaskUpdate
+
 
 # Create the FastAPI app with startup/shutdown events
 @asynccontextmanager
@@ -68,7 +69,7 @@ async def create_task(task: TaskCreate, session: AsyncSession = Depends(get_sess
     return db_task
 
 # ===== READ: GET /tasks =====
-@app.get("/tasks", response_model=List[TaskResponse])
+@app.get("/tasks", response_model=list[TaskResponse])
 async def get_all_tasks(session: AsyncSession = Depends(get_session)):
     """
     Get all tasks.

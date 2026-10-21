@@ -2,9 +2,9 @@
 Database models and Pydantic schemas for the Task Manager API
 """
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, DateTime, func
+from sqlalchemy import Column, DateTime, Integer, String, func
 from sqlalchemy.ext.declarative import declarative_base
 
 # Base class for all SQLAlchemy models
@@ -13,7 +13,7 @@ Base = declarative_base()
 # ===== DATABASE MODELS (SQLAlchemy) =====
 # These define the actual database tables
 
-class TaskDB(Base):
+class TaskDB(Base):  # type: ignore[misc,valid-type]  # declarative_base() returns Any; see mypy#2477
     """
     The Task table in PostgreSQL.
 
@@ -39,20 +39,20 @@ class TaskDB(Base):
 class TaskCreate(BaseModel):
     """Schema for creating a new task"""
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     status: str = "pending"
 
 class TaskUpdate(BaseModel):
     """Schema for updating a task"""
-    title: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    status: str | None = None
 
 class TaskResponse(BaseModel):
     """Schema for returning a task in API responses"""
     id: int
     title: str
-    description: Optional[str]
+    description: str | None
     status: str
     created_at: datetime
 
