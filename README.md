@@ -1,6 +1,11 @@
 # Task Manager API
 
 ![CI](https://github.com/ApparentlyTejas/Personal-Task-Manager-API/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-async-336791?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 
 A simple REST API for managing tasks, built with **FastAPI**, **PostgreSQL**, and **Docker**. This project demonstrates modern Python backend development with async programming, database integration, and containerization.
 
