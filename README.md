@@ -1,4 +1,4 @@
-# Task Manager API
+# Personal Task Manager API
 
 ![CI](https://github.com/ApparentlyTejas/Personal-Task-Manager-API/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -7,432 +7,171 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-async-336791?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 
-A simple REST API for managing tasks, built with **FastAPI**, **PostgreSQL**, and **Docker**. This project demonstrates modern Python backend development with async programming, database integration, and containerization.
+An async REST API for managing tasks (create, list, fetch, update, delete), built with FastAPI and PostgreSQL. SQLAlchemy's async engine talks to Postgres over `asyncpg`, so a request never blocks the event loop while waiting on the database. The whole stack (API + Postgres) runs with one `docker compose up` command, and the project ships with a pytest suite that runs against a real Postgres instance in CI.
 
-## 🎯 Features
+## Request flow
 
-- ✅ **CRUD Operations**: Create, Read, Update, Delete tasks
-- ✅ **Async Programming**: Built with FastAPI's async/await for high performance
-- ✅ **PostgreSQL Database**: Persistent data storage with proper schema
-- ✅ **Docker & Docker Compose**: Easy setup and deployment
-- ✅ **Type Safety**: Pydantic models for request/response validation
-- ✅ **Error Handling**: Proper HTTP status codes and error messages
-- ✅ **API Documentation**: Auto-generated Swagger UI at `/docs`
+```mermaid
+sequenceDiagram
+    participant Client
+    participant FastAPI as FastAPI (main.py)
+    participant Session as AsyncSession (database.py)
+    participant Postgres
 
-## 🏗️ Architecture
-
-```
-┌─────────────┐         ┌──────────────┐
-│  FastAPI    │─────────│  PostgreSQL  │
-│  (Port 8001)│         │  (Port 5433) │
-└─────────────┘         └──────────────┘
-       ↓
-   Docker Container
+    Client->>FastAPI: HTTP request (e.g. POST /tasks)
+    FastAPI->>FastAPI: Validate body with Pydantic (TaskCreate/TaskUpdate)
+    FastAPI->>Session: Depends(get_session)
+    Session->>Postgres: await session.execute(...) via asyncpg
+    Postgres-->>Session: rows
+    Session-->>FastAPI: ORM objects (TaskDB)
+    FastAPI-->>Client: JSON response (TaskResponse)
 ```
 
-**Tech Stack:**
-- **Framework**: FastAPI 0.104.1
-- **Database**: PostgreSQL 15 (Alpine)
-- **ORM**: SQLAlchemy 2.0 with async support
-- **Async Driver**: asyncpg
-- **Server**: Uvicorn
-- **Containerization**: Docker & Docker Compose
+## Features
 
-## 📋 Project Structure
+- Full CRUD on tasks: `POST`, `GET` (list and by id), `PATCH`, `DELETE`
+- Fully async request path: FastAPI route handlers, SQLAlchemy's `AsyncSession`, and the `asyncpg` driver, no blocking database calls
+- Request and response validation with Pydantic models (`TaskCreate`, `TaskUpdate`, `TaskResponse`), separate from the SQLAlchemy ORM model (`TaskDB`)
+- Partial updates: `PATCH /tasks/{id}` only touches the fields you send, via `model_dump(exclude_unset=True)`
+- Proper error handling (404 for missing tasks, 422 for validation errors)
+- Tables created automatically on startup through a FastAPI `lifespan` hook
+- One-command local stack with Docker Compose (API container + Postgres container with a health check gate)
+- CI pipeline (GitHub Actions) running ruff, mypy, and pytest with coverage against a real Postgres service container
 
-```
-.
-├── main.py                 # FastAPI application & endpoints
-├── models.py              # SQLAlchemy ORM models & Pydantic schemas
-├── database.py            # Database connection & session management
-├── tests/                 # Pytest smoke tests (health check + CRUD round-trip)
-├── requirements.txt       # Python dependencies
-├── requirements-dev.txt   # + test/lint/type-check tooling
-├── pyproject.toml         # ruff, mypy, and pytest configuration
-├── .github/workflows/ci.yml  # GitHub Actions: lint, type-check, test+coverage
-├── Dockerfile             # FastAPI container configuration
-├── docker-compose.yml     # Multi-container setup
-├── .env.example          # Example environment variables
-├── .gitignore            # Git ignore rules
-└── README.md             # This file
-```
+## Tech stack
 
-## 🚀 Quick Start
+| Layer | Choice |
+|---|---|
+| Framework | FastAPI |
+| Language | Python 3.11 |
+| ORM | SQLAlchemy 2.0 (async) |
+| Database driver | asyncpg |
+| Database | PostgreSQL 15 |
+| Server | Uvicorn |
+| Validation | Pydantic 2 |
+| Containerization | Docker, Docker Compose |
+| Testing | pytest, pytest-asyncio, coverage.py |
+| Linting / typing | ruff, mypy |
+| CI | GitHub Actions |
 
-### Prerequisites
-- Docker & Docker Compose
-- Git (optional, for version control)
+## Data model
 
-### Installation & Running
+The `tasks` table (`models.py`):
 
-1. **Clone the repository** (if you haven't already):
+| Column | Type | Notes |
+|---|---|---|
+| `id` | integer | primary key, auto-increment |
+| `title` | varchar(255) | required |
+| `description` | text | optional |
+| `status` | varchar(50) | free-form string, defaults to `pending` |
+| `created_at` | timestamptz | set by the database on insert |
+
+## Running it locally
+
+### With Docker (recommended)
+
 ```bash
-git clone https://github.com/YourUsername/Personal-Task-Manager-API.git
+git clone https://github.com/ApparentlyTejas/Personal-Task-Manager-API.git
 cd Personal-Task-Manager-API
-```
-
-2. **Start the services**:
-```bash
 docker compose up --build
 ```
 
-You should see:
-```
-✅ Container task_manager_db   Running
-✅ Container task_manager_app  Running
-✅ Application startup complete
-```
+This starts two containers: `task_manager_db` (Postgres, host port 5433) and `task_manager_app` (FastAPI, host port 8001). The app container waits for Postgres's health check before starting.
 
-3. **Test the API**:
 ```bash
 curl http://localhost:8001/
+# {"message":"Task Manager API is running! 🚀"}
 ```
 
-Expected response:
-```json
-{"message":"Task Manager API is running! 🚀"}
-```
-
-## 📡 API Endpoints
-
-### Health Check
-```bash
-GET /
-```
-Returns: `{"message":"Task Manager API is running! 🚀"}`
-
-### Create a Task
-```bash
-POST /tasks
-Content-Type: application/json
-
-{
-  "title": "Learn Docker",
-  "description": "Understand containers and Docker Compose",
-  "status": "in_progress"
-}
-```
-
-**Response** (201 Created):
-```json
-{
-  "id": 1,
-  "title": "Learn Docker",
-  "description": "Understand containers and Docker Compose",
-  "status": "in_progress",
-  "created_at": "2026-05-21T20:30:00+00:00"
-}
-```
-
-### Get All Tasks
-```bash
-GET /tasks
-```
-
-**Response** (200 OK):
-```json
-[
-  {
-    "id": 1,
-    "title": "Learn Docker",
-    "description": "Understand containers and Docker Compose",
-    "status": "in_progress",
-    "created_at": "2026-05-21T20:30:00+00:00"
-  },
-  {
-    "id": 2,
-    "title": "Learn FastAPI",
-    "description": "Build REST APIs",
-    "status": "pending",
-    "created_at": "2026-05-21T20:35:00+00:00"
-  }
-]
-```
-
-### Get a Specific Task
-```bash
-GET /tasks/1
-```
-
-**Response** (200 OK):
-```json
-{
-  "id": 1,
-  "title": "Learn Docker",
-  "description": "Understand containers and Docker Compose",
-  "status": "in_progress",
-  "created_at": "2026-05-21T20:30:00+00:00"
-}
-```
-
-### Update a Task
-```bash
-PATCH /tasks/1
-Content-Type: application/json
-
-{
-  "status": "completed"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "id": 1,
-  "title": "Learn Docker",
-  "description": "Understand containers and Docker Compose",
-  "status": "completed",
-  "created_at": "2026-05-21T20:30:00+00:00"
-}
-```
-
-### Delete a Task
-```bash
-DELETE /tasks/1
-```
-
-**Response** (200 OK):
-```json
-{"message":"Task 1 deleted successfully"}
-```
-
-## 🔍 Interactive API Documentation
-
-FastAPI auto-generates interactive API docs:
-
-- **Swagger UI**: http://localhost:8001/docs
-- **ReDoc**: http://localhost:8001/redoc
-
-You can test all endpoints directly from these interfaces!
-
-## 🗄️ Database Schema
-
-### Tasks Table
-```sql
-CREATE TABLE tasks (
-  id SERIAL PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description VARCHAR,
-  status VARCHAR(50) NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
-```
-
-**Columns:**
-- `id`: Auto-incrementing primary key
-- `title`: Task title (required, max 255 chars)
-- `description`: Detailed description (optional)
-- `status`: One of `pending`, `in_progress`, `completed`
-- `created_at`: Timestamp when task was created
-
-## 💡 Key Concepts Explained
-
-### Async/Await
-All endpoints use `async def` to handle multiple requests simultaneously without blocking. This makes the API fast and efficient.
-
-```python
-@app.get("/tasks")
-async def get_all_tasks(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(TaskDB))
-    return result.scalars().all()
-```
-
-### Dependency Injection
-`Depends(get_session)` automatically provides a database session to each endpoint:
-
-```python
-async def get_task(task_id: int, session: AsyncSession = Depends(get_session)):
-    # session is automatically provided by FastAPI
-    result = await session.execute(select(TaskDB).where(TaskDB.id == task_id))
-```
-
-### Pydantic Models
-Request/response validation happens automatically:
-
-```python
-class TaskCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    status: str = "pending"
-```
-
-FastAPI validates the JSON and converts it to a Python object.
-
-### SQLAlchemy ORM
-Define tables as Python classes:
-
-```python
-class TaskDB(Base):
-    __tablename__ = "tasks"
-    id = Column(Integer, primary_key=True)
-    title = Column(String(255), nullable=False)
-    # ...
-```
-
-## 🛑 Error Handling
-
-The API returns appropriate HTTP status codes:
-
-| Status | Meaning | Example |
-|--------|---------|---------|
-| 200 | Success | GET, PATCH, DELETE worked |
-| 201 | Created | POST created new task |
-| 404 | Not Found | Task ID doesn't exist |
-| 422 | Validation Error | Invalid request body |
-| 500 | Server Error | Database connection failed |
-
-## 🧪 Testing Examples
-
-### Create 3 tasks:
-```bash
-curl -X POST http://localhost:8001/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Task 1","status":"pending"}'
-
-curl -X POST http://localhost:8001/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Task 2","status":"in_progress"}'
-
-curl -X POST http://localhost:8001/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Task 3","status":"completed"}'
-```
-
-### Get all tasks:
-```bash
-curl http://localhost:8001/tasks | jq
-```
-
-### Update task 2:
-```bash
-curl -X PATCH http://localhost:8001/tasks/2 \
-  -H "Content-Type: application/json" \
-  -d '{"status":"completed","title":"Updated Task 2"}'
-```
-
-### Delete task 3:
-```bash
-curl -X DELETE http://localhost:8001/tasks/3
-```
-
-## 📚 Learning Resources
-
-This project teaches:
-- **Docker**: Containerization and Docker Compose
-- **FastAPI**: Building modern REST APIs in Python
-- **PostgreSQL**: Relational databases and SQL
-- **SQLAlchemy**: Python ORM for database operations
-- **Async Programming**: asyncio and async/await
-- **API Design**: RESTful principles, status codes, error handling
-
-## 🔧 Environment Variables
-
-Create a `.env` file based on `.env.example`:
-
-```
-DATABASE_URL=postgresql+asyncpg://taskuser:taskpass@db:5432/taskdb
-ENVIRONMENT=development
-```
-
-## 🐛 Troubleshooting
-
-### Port already in use
-If port 8001 or 5433 is already in use, modify `docker-compose.yml`:
-```yaml
-ports:
-  - "8002:8000"  # Change 8002 to another port
-```
-
-### Docker not running
-Make sure Docker Desktop (or OrbStack on Mac) is running.
-
-### Database connection errors
-Check Docker logs:
-```bash
-docker compose logs db
-docker compose logs web
-```
-
-### Container won't start
-Rebuild the image:
-```bash
-docker compose down
-docker compose up --build
-```
-
-## ✅ CI, Linting, Type Checking & Coverage
-
-Every push/PR to `main` runs three GitHub Actions jobs (see `.github/workflows/ci.yml`):
-
-- **Lint** — [ruff](https://docs.astral.sh/ruff/) (config in `pyproject.toml`)
-- **Type check** — [mypy](https://mypy-lang.org/) in strict-ish mode with `ignore_missing_imports = true` for stub-less libraries
-- **Test & coverage** — `pytest` against a real `postgres:15-alpine` service container (same image/credentials as `docker-compose.yml`), with a coverage report uploaded as a workflow artifact (`coverage.xml` + HTML)
-
-### Running it locally
+### Without Docker
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
+
+# Point at your own Postgres instance
+export DATABASE_URL="postgresql+asyncpg://taskuser:taskpass@localhost:5432/taskdb"
+
+uvicorn main:app --reload
+```
+
+Interactive docs are available at `/docs` (Swagger) and `/redoc` once the server is running.
+
+## Example request
+
+```bash
+curl -X POST http://localhost:8001/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Write project README", "description": "Document the API for recruiters", "status": "in_progress"}'
+```
+
+Response:
+
+```json
+{
+  "id": 1,
+  "title": "Write project README",
+  "description": "Document the API for recruiters",
+  "status": "in_progress",
+  "created_at": "2026-05-21T20:30:00+00:00"
+}
+```
+
+Fetching it back:
+
+```bash
+curl http://localhost:8001/tasks/1
+```
+
+```json
+{
+  "id": 1,
+  "title": "Write project README",
+  "description": "Document the API for recruiters",
+  "status": "in_progress",
+  "created_at": "2026-05-21T20:30:00+00:00"
+}
+```
+
+Updating just the status, leaving everything else untouched:
+
+```bash
+curl -X PATCH http://localhost:8001/tasks/1 \
+  -H "Content-Type: application/json" \
+  -d '{"status": "completed"}'
+```
+
+## Testing
+
+The test suite (`tests/test_smoke.py` and `tests/test_tasks.py`) runs with pytest against a real Postgres database, not a mock. It covers the health check, a full CRUD round-trip, 404s on every not-found path, 422s on validation errors (missing, null, or wrong-typed fields), partial-update behavior (confirming `PATCH` leaves unset fields alone), multi-row listing and deletion, and edge cases like empty titles and the 255-character column boundary on `title`. Coverage sits at 98% across `main.py`, `models.py`, and `database.py`.
+
+To run it locally:
+
+```bash
 pip install -r requirements-dev.txt
 
-# Lint
-ruff check .
-
-# Type check
-mypy main.py models.py database.py tests
-
-# Tests + coverage (point DATABASE_URL at a disposable Postgres instance)
 docker run -d --name taskdb-test -e POSTGRES_USER=taskuser -e POSTGRES_PASSWORD=taskpass \
   -e POSTGRES_DB=taskdb -p 5544:5432 postgres:15-alpine
 
 DATABASE_URL="postgresql+asyncpg://taskuser:taskpass@localhost:5544/taskdb" \
-  pytest --cov=main --cov=models --cov=database --cov-report=term-missing --cov-report=html
-# open htmlcov/index.html for the interactive coverage report
+  pytest --cov=main --cov=models --cov=database --cov-report=term-missing
 ```
 
-### Test coverage
+Every push and pull request to `main` also runs ruff and mypy in CI, alongside the test job, see `.github/workflows/ci.yml`.
 
-98% (`main.py`/`models.py`/`database.py` combined), up from an initial smoke-only baseline. On top of
-the original smoke suite (`tests/test_smoke.py`: health check + one CRUD round-trip + a 404 check),
-`tests/test_tasks.py` adds: validation-error coverage (missing/null/wrong-typed fields on create and
-update, all returning 422), a 404 check for every not-found path (get/update/delete, including deleting
-an already-deleted task), partial-update tests confirming PATCH leaves untouched fields alone, multi-row
-listing/deletion scenarios, and edge cases (empty and whitespace-only titles, and the exact 255-char
-column boundary for `title`).
+## Possible next steps
 
-Two behaviors are documented by name in the tests, since they're part of the API's current contract:
-status is currently a free-form string (no enum or transition guard — any value is accepted, which keeps
-the model simple for now), and a title right at the 255-character column boundary is handled explicitly
-(`test_create_task_title_over_column_boundary_currently_500s` pins down today's behavior at that edge so
-future changes to it are a deliberate decision, not a surprise).
+- Authentication (JWT)
+- Filtering, sorting, and pagination on `GET /tasks`
+- A proper status enum with transition rules, instead of a free-form string
+- Deployment to a cloud provider
 
-Only `main.py`'s `if __name__ == "__main__": uvicorn.run(...)` block is outside pytest's reach, since it
-only runs when the file is executed directly as a script.
+## License
 
-## 📈 Future Enhancements
+MIT. See `LICENSE`.
 
-- [ ] Add user authentication (JWT tokens)
-- [ ] Add task filtering and sorting
-- [ ] Add pagination for large task lists
-- [ ] Add task categories/tags
-- [ ] Add due dates and reminders
-- [ ] Add a status enum with transition rules
-- [ ] Add input-length validation at the API layer, matching the DB column limits
-- [ ] Add concurrency tests for simultaneous updates to the same task, and load testing for the listing endpoint at larger row counts
-- [ ] Expand test coverage beyond the smoke suite
-- [ ] Deploy to cloud (AWS, Heroku, Railway)
-
-## 📝 License
-
-This project is open source and available under the MIT License.
-
-## 👤 Author
+## Author
 
 **Tejas Malhotra**
-- Email: tejas.malhotra.14@gmail.com
-- GitHub: ApparentlyTejas
-- (https://github.com/ApparentlyTejas)
-
----
-
-**Happy coding!** 🚀 If you found this helpful, please star the repository!
+GitHub: [ApparentlyTejas](https://github.com/ApparentlyTejas)
