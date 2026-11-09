@@ -1,13 +1,14 @@
-# Personal Task Manager API
+# Personal Task Manager
 
 ![CI](https://github.com/ApparentlyTejas/Personal-Task-Manager-API/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-async-336791?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)
 
-An async REST API for managing tasks (create, list, fetch, update, delete), built with FastAPI and PostgreSQL. SQLAlchemy's async engine talks to Postgres over `asyncpg`, so a request never blocks the event loop while waiting on the database. The whole stack (API + Postgres) runs with one `docker compose up` command, and the project ships with a pytest suite that runs against a real Postgres instance in CI.
+A full-stack task manager: an async FastAPI/PostgreSQL REST API underneath, a React + Tailwind UI (filterable task list, stat cards, create/edit form) on top. SQLAlchemy's async engine talks to Postgres over `asyncpg`, so a request never blocks the event loop while waiting on the database. The whole backend stack (API + Postgres) runs with one `docker compose up` command, and the project ships with a pytest suite that runs against a real Postgres instance in CI.
 
 ## Request flow
 
@@ -29,6 +30,7 @@ sequenceDiagram
 
 ## Features
 
+**Backend**
 - Full CRUD on tasks: `POST`, `GET` (list and by id), `PATCH`, `DELETE`
 - Fully async request path: FastAPI route handlers, SQLAlchemy's `AsyncSession`, and the `asyncpg` driver, no blocking database calls
 - Request and response validation with Pydantic models (`TaskCreate`, `TaskUpdate`, `TaskResponse`), separate from the SQLAlchemy ORM model (`TaskDB`)
@@ -38,18 +40,25 @@ sequenceDiagram
 - One-command local stack with Docker Compose (API container + Postgres container with a health check gate)
 - CI pipeline (GitHub Actions) running ruff, mypy, and pytest with coverage against a real Postgres service container
 
+**Frontend**
+- React + Tailwind single-page UI talking directly to the API (`frontend/src/api.js`)
+- Filterable task list (all / pending / in progress / done) with live stat cards for each status
+- Create and edit tasks through a form component, delete with confirmation
+- Graceful error state when the backend is unreachable, instead of a blank screen
+
 ## Tech stack
 
 | Layer | Choice |
 |---|---|
-| Framework | FastAPI |
-| Language | Python 3.11 |
+| Backend framework | FastAPI |
+| Backend language | Python 3.11 |
 | ORM | SQLAlchemy 2.0 (async) |
 | Database driver | asyncpg |
 | Database | PostgreSQL 15 |
 | Server | Uvicorn |
 | Validation | Pydantic 2 |
-| Containerization | Docker, Docker Compose |
+| Frontend | React 18, Tailwind CSS, Vite |
+| Containerization | Docker, Docker Compose (API, Postgres, and frontend each have a `Dockerfile`) |
 | Testing | pytest, pytest-asyncio, coverage.py |
 | Linting / typing | ruff, mypy |
 | CI | GitHub Actions |
@@ -97,6 +106,18 @@ uvicorn main:app --reload
 ```
 
 Interactive docs are available at `/docs` (Swagger) and `/redoc` once the server is running.
+
+### Frontend
+
+`docker-compose.yml` only starts the API and Postgres; run the React UI separately (it has its own `Dockerfile` for a containerized build, but `npm run dev` is simplest for local use):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Opens at `http://localhost:5173`. It talks to the API at `http://localhost:8000` by default (`VITE_API_URL` in `frontend/.env`, see `.env.example`), which matches the "Without Docker" backend above; if you're running the API via `docker compose` instead (host port 8001), set `VITE_API_URL=http://localhost:8001`.
 
 ## Example request
 
